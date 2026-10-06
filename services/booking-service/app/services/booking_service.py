@@ -4,6 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
+from uuid import UUID
+
 from app.models.booking import Booking
 from app.schemas.booking import BookingCreate
 from app.core.config import settings
@@ -80,4 +82,16 @@ def get_user_bookings(db: Session, user_id) -> list[Booking]:
             Booking.user_id == user_id,
             Booking.status == "confirmed",
         ).order_by(Booking.created_at.desc())
+    ).all()
+
+
+def get_booked_slot_ids(
+    db: Session,
+    slot_ids: list[UUID],
+) -> list[UUID]:
+    return db.scalars(
+        select(Booking.slot_id).where(
+            Booking.slot_id.in_(slot_ids),
+            Booking.status == "confirmed",
+        )
     ).all()
