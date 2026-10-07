@@ -13,7 +13,11 @@ from app.services.slot_service import (
 
 from app.core.database import SessionLocal
 from app.schemas.machine import MachineCreate, MachineResponse
-from app.services.machine_service import create_machine, get_machines
+from app.services.machine_service import (
+    create_machine,
+    get_machines,
+    set_machine_status,
+)
 
 
 app = FastAPI(title="Machine Service")
@@ -88,3 +92,22 @@ def get_slot(slot_id: UUID, db: Session = Depends(get_db)):
         return get_slot_by_id(db, slot_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.patch("/machines/{machine_id}/status", response_model=MachineResponse)
+def update_machine_status(
+    machine_id: UUID,
+    is_active: bool,
+    db: Session = Depends(get_db),
+):
+    try:
+        return set_machine_status(
+            db,
+            machine_id,
+            is_active,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )

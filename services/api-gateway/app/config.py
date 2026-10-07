@@ -14,3 +14,8 @@ BOOKING_SERVICE_URL = os.getenv(
     "BOOKING_SERVICE_URL",
     "http://localhost:8002",
 )
+
+AUTH_SERVICE_URL = os.getenv(
+    "AUTH_SERVICE_URL",
+    "http://localhost:8003",
+)

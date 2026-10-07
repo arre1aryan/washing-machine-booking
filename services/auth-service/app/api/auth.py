@@ -13,8 +13,12 @@ from app.services.user_service import (
     authenticate_user,
     )
 from app.core.security import create_access_token
-from app.api.dependencies import get_db, get_current_user
 from app.models.user import User
+from app.api.dependencies import (
+    get_db,
+    get_current_user,
+    get_current_admin,
+)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -64,3 +68,13 @@ def get_me(
     current_user: User = Depends(get_current_user),
 ):
     return current_user
+
+# @router.get("/admin-test")
+# def admin_test(
+#     current_admin: User = Depends(get_current_admin),
+# ):
+#     return {
+#         "message": "Admin access granted",
+#         "user_id": str(current_admin.id),
+#         "role": current_admin.role,
+#     }

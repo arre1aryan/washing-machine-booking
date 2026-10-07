@@ -98,4 +98,14 @@ def get_slot_by_id(db: Session, slot_id) -> Slot:
     if not slot:
         raise ValueError("Slot not found")
 
+    machine = db.scalar(
+        select(Machine).where(Machine.id == slot.machine_id)
+    )
+
+    if not machine:
+        raise ValueError("Machine not found")
+
+    if not machine.is_active:
+        raise ValueError("Machine is inactive")
+
     return slot

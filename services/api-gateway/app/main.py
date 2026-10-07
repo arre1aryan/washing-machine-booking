@@ -1,15 +1,22 @@
 import httpx
-from fastapi import FastAPI, HTTPException
+
+from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Depends
 
 from datetime import date
 from uuid import UUID
 
 from app.config import MACHINE_SERVICE_URL, BOOKING_SERVICE_URL
-
+from app.api.dependencies import (
+    get_current_user,
+    get_current_admin,
+)
 
 
 app = FastAPI(title="API Gateway")
 
+class BookingRequest(BaseModel):
+    slot_id: UUID
 
 @app.get("/health")
 def health_check():
@@ -95,3 +102,102 @@ def get_availability(
         }
         for slot in slots
     ]
+
+@app.post("/bookings", status_code=201)
+def create_booking(
+    booking_data: BookingRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    payload = {
+        "user_id": current_user["id"],
+        "slot_id": str(booking_data.slot_id),
+    }
+
+    try:
+        response = httpx.post(
+            f"{BOOKING_SERVICE_URL}/bookings",
+            json=payload,
+            timeout=5.0,
+        )
+    except httpx.RequestError:
+        raise HTTPException(
+            status_code=503,
+            detail="Booking Service unavailable",
+        )
+
+    if response.status_code != 201:
+        try:
+            detail = response.json().get(
+                "detail",
+                "Booking Service request failed",
+            )
+        except ValueError:
+            detail = "Booking Service request failed"
+
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=detail,
+        )
+
+    return response.json()
+
+
+@app.get("/bookings/me")
+def get_my_bookings(
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user["id"]
+
+    try:
+        response = httpx.get(
+            f"{BOOKING_SERVICE_URL}/bookings/{user_id}",
+            timeout=5.0,
+        )
+    except httpx.RequestError:
+        raise HTTPException(
+            status_code=503,
+            detail="Booking Service unavailable",
+        )
+
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail="Booking Service request failed",
+        )
+
+    return response.json()
+
+
+@app.patch("/admin/machines/{machine_id}/status")
+def update_machine_status(
+    machine_id: UUID,
+    is_active: bool,
+    current_admin: dict = Depends(get_current_admin),
+):
+    try:
+        response = httpx.patch(
+            f"{MACHINE_SERVICE_URL}/machines/{machine_id}/status",
+            params={"is_active": is_active},
+            timeout=5.0,
+        )
+    except httpx.RequestError:
+        raise HTTPException(
+            status_code=503,
+            detail="Machine Service unavailable",
+        )
+
+    if response.status_code != 200:
+        try:
+            detail = response.json().get(
+                "detail",
+                "Machine Service request failed",
+            )
+        except ValueError:
+            detail = "Machine Service request failed"
+
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=detail,
+        )
+
+    return response.json()
