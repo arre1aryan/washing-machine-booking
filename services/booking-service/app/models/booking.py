@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, UniqueConstraint
+from sqlalchemy import DateTime, String, Index, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base import Base
@@ -11,9 +11,11 @@ class Booking(Base):
     __tablename__ = "bookings"
 
     __table_args__ = (
-        UniqueConstraint(
-            "slot_id",
-            name="uq_booking_slot",
+    Index(
+        "uq_booking_confirmed_slot",
+        "slot_id",
+        unique=True,
+        postgresql_where=text("status = 'confirmed'"),
         ),
     )
 

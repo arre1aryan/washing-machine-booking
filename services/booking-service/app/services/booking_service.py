@@ -1,6 +1,6 @@
 import httpx
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -11,7 +11,20 @@ from app.schemas.booking import BookingCreate
 from app.core.config import settings
 
 
-def create_booking(db: Session, booking_data: BookingCreate) -> Booking:
+def create_booking(
+    db: Session,
+    booking_data: BookingCreate,
+    user_id: UUID,
+) -> Booking:
+    db.execute(
+    text("""
+        SELECT pg_advisory_xact_lock(
+            hashtextextended(:user_id, 0)
+        )
+    """),
+    {"user_id": str(user_id)},
+    )
+
     existing_booking = db.scalar(
         select(Booking).where(
             Booking.slot_id == booking_data.slot_id,
@@ -29,7 +42,7 @@ def create_booking(db: Session, booking_data: BookingCreate) -> Booking:
 
     user_bookings = db.scalars(
         select(Booking).where(
-            Booking.user_id == booking_data.user_id,
+            Booking.user_id == user_id,
             Booking.status == "confirmed",
         )
     ).all()
@@ -46,7 +59,7 @@ def create_booking(db: Session, booking_data: BookingCreate) -> Booking:
             )
 
     booking = Booking(
-        user_id=booking_data.user_id,
+        user_id=user_id,
         slot_id=booking_data.slot_id,
         status="confirmed",
     )
@@ -95,3 +108,35 @@ def get_booked_slot_ids(
             Booking.status == "confirmed",
         )
     ).all()
+
+
+def cancel_booking(
+    db: Session,
+    booking_id: UUID,
+    user_id: UUID,
+) -> Booking:
+
+    # Lock the booking row during cancellation
+    booking = db.scalar(
+        select(Booking)
+        .where(Booking.id == booking_id)
+        .with_for_update()
+    )
+
+    if booking is None:
+        raise LookupError("Booking not found")
+
+    if booking.user_id != user_id:
+        raise PermissionError(
+            "You cannot cancel another user's booking"
+        )
+
+    if booking.status != "confirmed":
+        raise ValueError("Booking is already cancelled")
+
+    booking.status = "cancelled"
+
+    db.commit()
+    db.refresh(booking)
+
+    return booking
