@@ -5,6 +5,7 @@ from uuid import UUID
 
 from app.models.machine import Machine
 from app.schemas.machine import MachineCreate
+from app.core.cache import invalidate_machine_availability
 
 
 def create_machine(db: Session, machine_data: MachineCreate) -> Machine:
@@ -47,5 +48,7 @@ def set_machine_status(
 
     db.commit()
     db.refresh(machine)
+
+    invalidate_machine_availability(machine.id)
 
     return machine

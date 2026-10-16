@@ -38,6 +38,12 @@ def create_booking_endpoint(
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
+    except ConnectionError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        )
+
 
 @app.get("/bookings/slots")
 def get_booked_slots(

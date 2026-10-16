@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.machine import Machine
 from app.models.slot import Slot
+from app.core.cache import invalidate_machine_availability
 
 
 def generate_daily_slots(
@@ -58,6 +59,9 @@ def generate_daily_slots(
     for slot in slots:
         db.refresh(slot)
 
+    if slots:
+        invalidate_machine_availability(machine_id)
+
     return slots
 
 
@@ -72,6 +76,9 @@ def get_slots_for_machine(
 
     if not machine:
         raise ValueError("Machine not found")
+
+    if not machine.is_active:
+        raise ValueError("Machine is inactive")
 
     start_time = datetime.combine(
         date,

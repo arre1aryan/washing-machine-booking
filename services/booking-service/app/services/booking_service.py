@@ -9,6 +9,7 @@ from uuid import UUID
 from app.models.booking import Booking
 from app.schemas.booking import BookingCreate
 from app.core.config import settings
+from app.core.cache import invalidate_slot_availability
 
 
 def create_booking(
@@ -74,18 +75,29 @@ def create_booking(
     
     db.refresh(booking)
 
+    invalidate_slot_availability(booking.slot_id)
+
     return booking
 
 def get_slot_details(slot_id):
-    response = httpx.get(
-        f"{settings.machine_service_url}/slots/{slot_id}"
-    )
+    try:
+        response = httpx.get(
+            f"{settings.machine_service_url}/slots/{slot_id}",
+            timeout=5.0,
+        )
+
+    except httpx.RequestError as exc:
+        raise ConnectionError(
+            "Machine Service unavailable"
+        ) from exc
 
     if response.status_code == 404:
         raise ValueError("Slot not found")
 
     if response.status_code != 200:
-        raise ValueError("Machine Service unavailable")
+        raise ConnectionError(
+            "Machine Service request failed"
+        )
 
     return response.json()
 
@@ -138,5 +150,7 @@ def cancel_booking(
 
     db.commit()
     db.refresh(booking)
+
+    invalidate_slot_availability(booking.slot_id)
 
     return booking

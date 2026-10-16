@@ -13,6 +13,15 @@ from app.api.dependencies import (
     get_current_admin,
 )
 
+from app.core.cache import (
+    availability_cache_key,
+    get_availability_version,
+    get_cached_availability,
+    set_cached_availability,
+)
+
+from app.core.rate_limiter import check_booking_rate_limit
+
 
 app = FastAPI(title="API Gateway")
 
@@ -53,6 +62,21 @@ def get_availability(
     machine_id: UUID,
     date: date,
 ):
+    version = get_availability_version(machine_id)
+
+    cache_key = None
+
+    if version is not None:
+        cache_key = availability_cache_key(
+            machine_id,
+            date.isoformat(),
+            version,
+        )
+
+        cached = get_cached_availability(cache_key)
+
+        if cached is not None:
+            return cached
     try:
         slots_response = httpx.get(
             f"{MACHINE_SERVICE_URL}/machines/{machine_id}/slots",
@@ -98,7 +122,7 @@ def get_availability(
 
     booked_slot_ids = set(booked_response.json())
 
-    return [
+    availability = [
         {
             **slot,
             "available": slot["id"] not in booked_slot_ids,
@@ -106,12 +130,25 @@ def get_availability(
         for slot in slots
     ]
 
+    # Cache writes will be enabled after invalidation is integrated.
+    # set_cached_availability(cache_key, availability)
+
+    if cache_key is not None:
+        latest_version = get_availability_version(machine_id)
+
+        if latest_version == version:
+            set_cached_availability(cache_key, availability)
+
+    return availability
+
 @app.post("/bookings", status_code=201)
 def create_booking(
     booking_data: BookingRequest,
     current_user: dict = Depends(get_current_user),
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
+    check_booking_rate_limit(current_user["id"])
+
     payload = {
         "slot_id": str(booking_data.slot_id),
     }
